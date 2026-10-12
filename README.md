@@ -14,11 +14,11 @@ This directory builds a ROCm/HIP `llama.cpp` server image for
   downloaded file against its Hugging Face LFS SHA256. Set `MODEL_REVISION` to
   override the revision; a saved model volume keeps its original revision.
 - Native context is 262,144 tokens. The server defaults to 65,536 tokens, one
-  parallel slot, and Q4_0 K/V cache. Runtime settings can be changed with
+  parallel slot, and F16 K/V cache. Runtime settings can be changed with
   `GPU_LAYERS`, `CTX_SIZE`, `PARALLEL`, `THREADS`, `BATCH_SIZE`, `UBATCH_SIZE`,
   `CACHE_TYPE_K`, `CACHE_TYPE_V`, `FLASH_ATTN`, `TEMP`, `TOP_P`, and `TOP_K`.
 - The server defaults to offloading up to 99 layers to the GPU. Its 65,536-token
-  context and Q4_0 K/V cache are sized for the 32 GiB card; lower `GPU_LAYERS`
+  context and F16 K/V cache are sized for the 32 GiB card; lower `GPU_LAYERS`
   or `CTX_SIZE` if startup runs out of memory. Actual allocation depends on the
   llama.cpp revision and other GPU processes.
 
