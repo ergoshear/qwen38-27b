@@ -1,7 +1,8 @@
 # Qwen3.8-27B Q4_K_M
 
-This directory builds a CUDA `llama.cpp` server image for the GeForce RTX 4090
-(Ada, compute capability 8.9).
+This directory builds a ROCm/HIP `llama.cpp` server image for
+`mlops-node-4.lan`: AMD Radeon AI PRO R9700 (`gfx1201`) with 32 GiB VRAM and
+64 GiB system RAM.
 
 ## Model
 
@@ -16,22 +17,21 @@ This directory builds a CUDA `llama.cpp` server image for the GeForce RTX 4090
   parallel slot, and Q4_0 K/V cache. Runtime settings can be changed with
   `GPU_LAYERS`, `CTX_SIZE`, `PARALLEL`, `THREADS`, `BATCH_SIZE`, `UBATCH_SIZE`,
   `CACHE_TYPE_K`, `CACHE_TYPE_V`, `FLASH_ATTN`, `TEMP`, `TOP_P`, and `TOP_K`.
-- The 24 GiB GPU cannot safely hold the model, a 262K cache, and all runtime
-  buffers at once. By default 56 layers are offloaded to the GPU and the
-  remaining layers use host RAM. Lower `GPU_LAYERS` first if startup runs out of
-  memory. Actual allocation depends on the llama.cpp revision and other GPU
-  processes.
+- The server defaults to offloading up to 99 layers to the GPU. Its 65,536-token
+  context and Q4_0 K/V cache are sized for the 32 GiB card; lower `GPU_LAYERS`
+  or `CTX_SIZE` if startup runs out of memory. Actual allocation depends on the
+  llama.cpp revision and other GPU processes.
 
 ## Build and download
 
-Use Linux with a working NVIDIA driver and NVIDIA Container Toolkit. The image
-provides CUDA user space and targets Ada architecture 8.9.
+Use Linux with a working AMDGPU driver and ROCm access to `/dev/kfd` and
+`/dev/dri`. The container supplies ROCm 7.2.3 user space and targets `gfx1201`.
 
 ```sh
-podman build --format docker -t qwen38-27b-4090 .
+podman build --format docker -t qwen38-27b .
 podman volume create qwen38-27b-model
-podman run --rm --gpus all -v qwen38-27b-model:/models \
-  --entrypoint /usr/local/bin/download-model qwen38-27b-4090
+podman run --rm -v qwen38-27b-model:/models \
+  --entrypoint /usr/local/bin/download-model qwen38-27b
 ```
 
 The model is public. If Hugging Face requires authentication, pass `HF_TOKEN`
@@ -41,10 +41,10 @@ only to the download command. Keep at least 20 GB free for the model volume.
 
 ```sh
 podman run -d --name qwen38-27b \
-  --gpus all --shm-size 8g \
+  --device /dev/kfd --device /dev/dri --group-add keep-groups \
   -v qwen38-27b-model:/models:ro \
   -p 127.0.0.1:8080:8080 \
-  qwen38-27b-4090
+  qwen38-27b
 podman logs -f qwen38-27b
 ```
 

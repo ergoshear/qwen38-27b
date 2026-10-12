@@ -2,11 +2,11 @@
 set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
-    exec /opt/llama/bin/llama-server \
+    exec /opt/llama.cpp/build/bin/llama-server \
         --model /models/Qwen3.8-27B-UD-Q4_K_M.gguf \
         --alias Qwen3.8-27B \
         --host 0.0.0.0 --port 8080 \
-        --n-gpu-layers "${GPU_LAYERS:-56}" \
+        --n-gpu-layers "${GPU_LAYERS:-99}" \
         --ctx-size "${CTX_SIZE:-65536}" \
         --parallel "${PARALLEL:-1}" \
         --threads "${THREADS:-16}" \
@@ -18,4 +18,4 @@ if [[ $# -eq 0 ]]; then
         --temp "${TEMP:-1.0}" --top-p "${TOP_P:-0.95}" --top-k "${TOP_K:-20}"
 fi
 
-exec /opt/llama/bin/llama-server "$@"
+exec /opt/llama.cpp/build/bin/llama-server "$@"

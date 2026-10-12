@@ -1,13 +1,14 @@
 # syntax=docker/dockerfile:1
-# Build llama.cpp for the GeForce RTX 4090 (Ada, compute capability 8.9).
-FROM nvidia/cuda:12.8.1-devel-ubuntu24.04 AS build
+# AMD Radeon AI PRO R9700 (gfx1201); the host supplies amdgpu/KFD.
+FROM docker.io/rocm/dev-ubuntu-24.04:7.2.3-complete@sha256:ec1b59bf75ec1122e7a091c0be82301ba12458b038499ef96a5c115876bd78d2
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    ROCM_PATH=/opt/rocm
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential ca-certificates cmake curl ninja-build \
+      jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Pinned llama.cpp revision with Qwen3.5 architecture support used by Qwen3.8.
 ARG LLAMA_CPP_REF=8345f333951c661d166b00e6f9362e553768f292
 RUN mkdir -p /opt/llama.cpp \
     && curl -fL --retry 5 \
@@ -16,31 +17,19 @@ RUN mkdir -p /opt/llama.cpp \
 
 WORKDIR /opt/llama.cpp
 ARG BUILD_JOBS=4
-# The CUDA devel image includes the driver stub as libcuda.so. CUDA's SONAME is
-# libcuda.so.1, which the linker needs to resolve when linking executables that
-# depend on ggml-cuda. The stub is build-only; the NVIDIA container runtime
-# supplies the real driver library at runtime.
-RUN test -f /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so \
-    && ln -sfn libcuda.so /usr/local/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 RUN cmake -S . -B build -G Ninja \
-      -DGGML_CUDA=ON \
-      -DCMAKE_CUDA_ARCHITECTURES=89 \
-      -DCMAKE_EXE_LINKER_FLAGS=-Wl,-rpath-link,/usr/local/cuda/targets/x86_64-linux/lib/stubs \
+      -DGGML_HIP=ON \
+      -DGPU_TARGETS=gfx1201 \
+      -DCMAKE_HIP_ARCHITECTURES=gfx1201 \
+      -DGGML_HIP_NO_VMM=ON \
+      -DGGML_CUDA_FA=ON \
       -DGGML_NATIVE=OFF \
       -DLLAMA_CURL=OFF \
       -DLLAMA_BUILD_TESTS=OFF \
       -DCMAKE_BUILD_TYPE=Release \
-    && cmake --build build --parallel "$BUILD_JOBS"
-RUN cmake --install build --prefix /opt/llama-install
+    && cmake --build build --target llama-cli llama-server --parallel "$BUILD_JOBS"
 
-FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
-ENV DEBIAN_FRONTEND=noninteractive \
-    LD_LIBRARY_PATH=/opt/llama/lib:/usr/local/cuda/lib64
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl jq libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=build /opt/llama-install/ /opt/llama/
+ENV LD_LIBRARY_PATH=/opt/rocm/lib:/opt/rocm/lib64
 COPY entrypoint.sh /usr/local/bin/qwen38-entrypoint
 COPY download-model.sh /usr/local/bin/download-model
 RUN chmod 0755 /usr/local/bin/qwen38-entrypoint /usr/local/bin/download-model
